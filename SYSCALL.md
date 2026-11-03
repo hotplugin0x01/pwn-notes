@@ -124,3 +124,62 @@ _start:
         mov rax, 60         ; exit syscall
         syscall
 ```
+
+---
+
+**Hardcoding the filename:** There are many ways to hardcode strings in the program. One way is to directly writing the strings on the stack, byte by byte. See following:
+```
+mov BYTE PTR [rsp], '/'
+mov BYTE PTR [rsp+1], 'f'
+mov BYTE PTR [rsp+2], 'l'
+mov BYTE PTR [rsp+3], 'a'
+mov BYTE PTR [rsp+4], 'g'
+mov BYTE PTR [rsp+5], '.'
+mov BYTE PTR [rsp+6], 't'
+mov BYTE PTR [rsp+7], 'x'
+mov BYTE PTR [rsp+8], 't'
+mov BYTE PTR [rsp+9], 0
+```
+- `BYTE PTR`: When writing to a memory address using an immediate value, the CPU doesn't know how many bytes we intend to write. This is size directive that tells the CPU that we want to write only one BYTE.
+- Single Quotes: It represents one-byte ASCII value of character ('/' == 0x2f).
+- The null byte: Tells the end of string. Without it, `open` would keep reading past "flag" into whatever else is on the stack.
+
+The following program:
+1. Write "/flag\0" onto the stack byte by byte using mov BYTE PTR [rsp+N], ...
+2. open it (syscall 2): rdi = rsp (the string you just wrote), rsi = 0
+read from the returned fd into memory (syscall 0), using a comfortably large count
+3. write to stdout exactly the number of bytes read returned (syscall 1)
+4. exit with code 42 (syscall 60)
+```
+.intel_syntax noprefix
+.global _start
+
+_start:
+        ; write fixed string to stack
+        mov BYTE PTR [rsp], '/'
+        mov BYTE PTR [rsp+1], 'f'
+        mov BYTE PTR [rsp+2], 'l'
+        mov BYTE PTR [rsp+3], 'a'
+        mov BYTE PTR [rsp+4], 'g'
+        mov BYTE PTR [rsp+5], 0
+        ; open syscall
+        mov rdi, rsp
+        mov rsi, 0
+        mov rax, 2
+        syscall
+        ; read syscall
+        mov rdi, rax
+        mov rsi, rsp
+        mov rdx, 128
+        mov rax, 0
+        syscall
+        ; write syscall
+        mov rdi, 1
+        mov rdx, rax
+        mov rax, 1
+        syscall
+        ; exit syscall
+        mov rdi, 42
+        mov rax, 60
+        syscall
+```
