@@ -53,7 +53,7 @@ The following code:
 .global _start
 
 _start:
-        cmp QWORD PTR [rsp], 42
+        cmp QWORD PTR [rsp], 42     ; compares value at rsp address (arg2) with 42
         setz dil
         mov rax, 60
         syscall
