@@ -11,7 +11,8 @@ The write syscall tells the operating system to print text to the screen (or wri
 **File Descriptors:**
     - FD 0: Standard Input is the channel through which the process takes input.
     - FD 1: Standard Output is the channel through which processes output normal data.
-    - FD 2: Standard Error is the channel through which processes output error details. 
+    - FD 2: Standard Error is the channel through which processes output error details.
+
 **C Like syntax for write syscall**
 ```c
 write(file_descriptor, memory_address, number_of_characters_to_write)
@@ -205,7 +206,7 @@ path:
 mov rdi, [rip+path]
 ```
 - **Note:** The above intruction will still not work as we intend because it reads 8-bytes from the `[rip+path]` into `rdi` instead of the adress of those bytes.
-- To solve this problem, we can use another instruction which is load effective address `lea`. This intruction calculates a memory address using the processor's addressing hardware and store that address into a destination register—without actually accessing or reading the data at that memory location. So:
+- To solve this problem, we can use another instruction which is load effective address `lea`. This intruction calculates a memory address using the processor's addressing hardware and store that address into a destination register, without actually accessing or reading the data at that memory location. So:
 ```assembly
 _start:
     ...
@@ -235,8 +236,8 @@ _start:
         mov rax, 1      ; write syscall
         syscall
         mov rdi, 42
-        mov rax, 60
-        syscall         ; exit syscall
+        mov rax, 60     ; exit syscall
+        syscall
 path:
         .asciz "/flag"
 ```
