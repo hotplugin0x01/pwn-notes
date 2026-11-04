@@ -5,7 +5,8 @@ Arguments in `rdi`, `rsi`, `rdx`, `r10`, `r8`, and `r9` and return value in `rax
 
 ---
 
-- **Write(1):** The write syscall tells the operating system to print text to the screen (or write to a file). It is how your program produces output.
+## Write(1)
+The write syscall tells the operating system to print text to the screen (or write to a file). It is how your program produces output.
 **Args:** what data to write and where to write it to.
 **File Descriptors:**
     - FD 0: Standard Input is the channel through which the process takes input.
@@ -33,7 +34,8 @@ _start:
 
 ---
 
-- **read(0):** It reads some amount of bytes from the provided file descriptor and stores them in memory. 
+## read(0):
+It reads some amount of bytes from the provided file descriptor and stores them in memory. 
 The following will read 5 bytes from file descriptor 0 (stdin) into memory starting from some_address.
 ```c
 read(0, some_address, 5);
@@ -85,7 +87,8 @@ _start:
 
 ---
 
-- **open(2):** The open system call (syscall number 2) takes a pointer to a filename string and returns a brand-new file descriptor referring to that file:
+## open(2)
+The open system call (syscall number 2) takes a pointer to a filename string and returns a brand-new file descriptor referring to that file:
 ```c
 open("/flag", 0);
 ```
@@ -127,8 +130,9 @@ _start:
 
 ---
 
-**Hardcoding the filename:** There are many ways to hardcode strings in the program. One way is to directly writing the strings on the stack, byte by byte. See following:
-```
+## Hardcoding the filename (in stack)
+There are many ways to hardcode strings in the program. One way is to directly writing the strings on the stack, byte by byte. See following:
+```assembly
 mov BYTE PTR [rsp], '/'
 mov BYTE PTR [rsp+1], 'f'
 mov BYTE PTR [rsp+2], 'l'
@@ -150,7 +154,7 @@ The following program:
 read from the returned fd into memory (syscall 0), using a comfortably large count
 3. write to stdout exactly the number of bytes read returned (syscall 1)
 4. exit with code 42 (syscall 60)
-```
+```assembly
 .intel_syntax noprefix
 .global _start
 
@@ -182,4 +186,57 @@ _start:
         mov rdi, 42
         mov rax, 60
         syscall
+```
+
+---
+
+## RIP-Relative Strings
+Instead of hardcoding the bytes on the stack, we can put them in the `.asciz` directive in the `path:` label.
+- `.asciz` (where the "z" stands for "zero") is a directive that defines a string of characters followed by a terminating null byte (0 or \0). The `path:` label marks where those bytes start.
+```assembly
+_start:
+    ...
+    ...
+path:
+    .asciz "/flag"
+```
+- To pass this path to the `open` syscall, we need to set it's address in the `rdi` register. This can be done by _Instruction Pointer Relative Addressing_. Because 64-bit x86 allows to use addresses relative to `rip` (instruction pointer) for memory reads and writes. Like following:
+```assembly
+mov rdi, [rip+path]
+```
+- **Note:** The above intruction will still not work as we intend because it reads 8-bytes from the `[rip+path]` into `rdi` instead of the adress of those bytes.
+- To solve this problem, we can use another instruction which is load effective address `lea`. This intruction calculates a memory address using the processor's addressing hardware and store that address into a destination register—without actually accessing or reading the data at that memory location. So:
+```assembly
+_start:
+    ...
+    lea rdi, [rip+path]
+    ...
+path:
+    .asciz "/flag"
+```
+The following code reads the `/flag` and writes it to the stdout.
+```assembly
+.intel_syntax noprefix
+.global _start
+
+_start:
+        lea rdi, [rip+path]
+        mov rsi, 0
+        mov rax, 2      ; open syscall
+        syscall
+        mov rdi, rax
+        mov rsi, rsp
+        mov rdx, 128
+        mov rax, 0      ; read syscall
+        syscall
+        mov rdi, 1
+        mov rsi, rsp
+        mov rdx, rax
+        mov rax, 1      ; write syscall
+        syscall
+        mov rdi, 42
+        mov rax, 60
+        syscall         ; exit syscall
+path:
+        .asciz "/flag"
 ```
