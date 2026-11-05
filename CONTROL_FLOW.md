@@ -13,7 +13,7 @@ Main conditional flags:
     - Linux x86: push arguments (in reverse order), then call (which pushes return address), return value in eax
     - Linux amd64: rdi, rsi, rdx, rcx, r8, r9, return value in rax
     - Linux arm: r0, r1, r2, r3, return value in r0
-    - **Linux amd64**:
+    - **Linux amd64:**
         - rbx, rbp, r12, r13, r14, r15 are "callee-saved" (the function you call keeps their values safe on the stack).
         - Other registers are up for grabs (within reason; e.g., rsp must be maintained). Save their values (on the stack)!
 
@@ -185,3 +185,197 @@ loop:
 - Unlike `jne` (which only jumps when a condition is met), `jmp` unconditionally always jumps. 
 - By jumping backward to the loop label, the program re-executes the same comparison logic on the next pair of characters. 
 - The loop terminates when either a mismatch is found (`jne fail`) or the `null` terminator is reached at the end of the string after the other characters are successfully matched to the password (`je success`).
+
+**Writing Loop:** A loop needs three pieces of state: where the current work is, how much progress has been made, and a test that decides when the loop is finished.
+
+For a string, the natural finish line is the null terminator: the 0 byte after the last character.
+
+Following program computes the length of `argv[1]` and exits with that length as its exit code. The program inspects the string one byte at a time and uses a backward jump to repeat the loop.
+```asm
+.intel_syntax noprefix
+.global _start
+
+_start:
+        xor rdi, rdi
+        mov rax, [rsp+16]
+
+loop:
+        cmp BYTE PTR [rax], 0
+        je done
+        inc rdi
+        inc rax
+        jmp loop
+done:
+        mov rax, 60
+        syscall
+```
+
+## 4. Functions `call` / `ret`
+`call <target>` is x86's function-call instruction. It does two things:
+1. Pushes the address of the next instruction `rip` after the call instruction (the return address) onto the stack.
+2. Jumps to `<target>`.
+
+```asm
+.global _start
+_start:
+    push 0x41414141   // put four 'A' bytes (0x41) on the stack to stand in for the flag
+    mov rdi, rsp      // first argument: a pointer to those bytes
+    mov rsi, 4        // second argument: how many bytes to print
+    int3              // optional: gdb breaks here without setting a breakpoint
+    call solve        // your solve runs, prints the bytes, and exits on its own
+```
+
+Defining function:
+```asm
+.intel_syntax noprefix
+.global solve
+
+solve:
+    <your code>
+```
+
+The `.global solve` line tells the assembler "expose this code so other code can find it". The `solve:` label actually specifies where the code is.
+
+**The calling convention:** The caller functions pass arguments to the callee in registers. For example, for two arguments, `rdi` and `rsi`.
+
+```asm
+.intel_syntax noprefix
+.global _start
+
+_start:
+        push 0x41424141
+        mov rdi, rsp
+        mov rsi, 4
+        call solve
+
+solve:
+        mov rdx, rsi
+        mov rsi, rdi
+        mov rdi, 1
+        mov rax, 1
+        syscall
+        mov rdi, 0
+        mov rax, 60
+        syscall
+```
+In the above code:
+- `rdi`	First argument (a pointer to a buffer of bytes)
+- `rsi`	Second argument (the length of that buffer)
+
+Then, in the solve function, we swap the registers because `write(1)` syscall takes arguments in the order of: file descriptor (1 in `rdi` for stdout), buffer (pointer to memory, in `rsi`), and size (in `rdx`). This is different from the arguments function is called with.
+
+### Returning value `ret`
+In previous function code, the callee exits using exit syscall and the control is never returned to the caller. This is not ideal.
+
+A callee function is supposed to hand back control to the caller function. This can be done by using the `ret` instruction.
+
+The `call` instruction pushes the return address onto the stack before jumping into function code. `ret` is the matching half: it pops that saved return address off the stack and jumps to it. 
+
+Together, `call` and `ret` form the basic function-call/function-return pair in x86
+
+**Note:** In the Linux x86-64 calling convention, the return value of a function goes in `rax`.
+
+**The working mechanics a function call:**
+1. The caller executes callee, passing argument (for example: one argument in `rdi`). When it does this, the next instruction in the caller function after `call` instruction gets pushed onto the stack as the "saved return address".
+2. Callee function does some work.
+3. Callee function puts its result in `rax` (return value).
+4. Callee function executes `ret`, which pops the saved return address off the stack and jumps back to the next instruction in caller code.
+5. The caller reads `rax` as the callee function's result ("return value").
+
+See following example of a function, which takes one argument via the `rdi` register and returns the same value via `rax` register. This value is then used as exit status code for the exit syscall.
+```asm
+.intel_syntax noprefix
+.global _start
+.global solve
+_start:
+        xor rdi, rdi
+        mov rdi, 0x1337
+        call solve
+        mov rdi, rax
+        mov rax, 60
+        syscall
+
+solve:
+        mov rax, rdi
+        ret
+```
+
+### Call through pointer (Function Pointer)
+A function pointer is just an address: a 64-bit value that names the location of some code in memory. 
+In the following code, the caller function receives a pointer to a function in `rdi` as first argument. Then, it calls it using `call rdi`:
+
+```asm
+.intel_syntax noprefix
+.global caller
+
+caller:
+        call rdi
+        mov rdi, 0
+        mov rax, 60
+        syscall
+```
+
+### Calling Convention
+How functions pass arguments and share registers across function calls is determined by the Calling Convention of architecture.
+
+Generally, a calling convention splits registers into two groups so that separately-written functions can cooperate:
+
+- **caller-saved registers** may be freely overwritten by any function you call. If you have a value in one of these that you need after a call, it's your job (the caller's) to save it first and restore it afterward. Typically, this is done by `push`ing them to the stack before calling the callee and `pop`ing them off the stack later. On x86-64, these registers are `rax` (which callees will clobber by moving the return value to), `rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`, `r10`, `r11`.
+- **callee-saved registers** must be left untouched by the functions you call (callees). _Rather, callees can touch them, but they must restore them back to their original state._ On x86-64, these are `rbx`, `rbp`, `r12`, `r13`, `r14`, `r15`.
+
+In simple terms:
+1. Caller-saved: Save these registers before calling another function: `rax`, `rcx`, `rdx`, `r8`, `r9`, `r10`, `r11`. This can be done by pushing then onto stack and then poping:
+```asm
+.intel_syntax noprefix
+.global solve
+
+solve:
+        push rsi
+        push rdx
+        push rcx
+        push rax
+        push r8
+        push r9
+        push r10
+        push r11
+        call rdi
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rax
+        pop rcx
+        pop rdx
+        pop rsi
+        call rsi
+```
+
+2. Callee-saved: The callee function must return these registers un-modified: `rbp`, `rbx`, `r12`, `r13`, `r14`, `r15`. 
+The rule is, when your function wants to use these registers, save (`push`) them on entry to your function, restore (`pop`) them before you `ret`.
+See example below:
+```asm
+.intel_syntax noprefix
+.global solve
+
+solve:
+        push rbp
+        push rbx
+        push r12
+        push r13
+        push r14
+        push r15
+        mov rbx, 0x1337
+        mov rbp, 0x1337
+        mov r12, 0x1337
+        mov r13, 0x1337
+        mov r14, 0x1337
+        mov r15, 0x1337
+        call rdi
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        pop rbx
+        pop rbp
+        ret
+```
