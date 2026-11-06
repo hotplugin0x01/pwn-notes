@@ -1,4 +1,11 @@
 # GDB Usage
+Useful Resorce: [Tudor's gdb crash course](https://web.archive.org/web/20250101052732/https://users.umiacs.umd.edu/~tdumitra/courses/ENEE757/Fall15/misc/gdb_tutorial.html)
+
+You can use the command `start` to start a program, with a breakpoint set on `main`. You can use the command `starti` to start a program, with a breakpoint set on `_start`. You can use the command `run` to start a program, with no breakpoint set. You can use the command `attach <PID>` to attach to some other already running program. You can use the command `core <PATH>` to analyze the coredump of an already run program.
+
+When starting or running a program, you can specify arguments in almost exactly the same way as you would on your shell.
+For example, you can use `start <ARGV1> <ARGV2> <ARGVN> < <STDIN_PATH>`.
+
 - Start a program with the starti command:
 ```bash
 (gdb) starti
@@ -44,6 +51,32 @@ For example to see in decimal format:
 ```bash
 (gdb) x/s <address>
 ```
+- Examining intruction at a address (location)
+The following command examines the instruction at the `rip`:
+```bash
+(gdb) x/i $rip
+```
+Or examine 10 instructions at `rip`:
+```bash
+(gdb) x/10i $rip
+```
+- Listing registers values
+```bash
+(gdb) info reg
+```
+- Listing values at the stack
+```bash
+# List 4 values at stack in hex
+(gdb) x/4gx $rsp
+# List 4 values at stack in decimal (signed)
+(gdb) x/4d $rsp
+# List 4 values at stack in decimal (unsigned)
+(gdb) x/4u $rsp
+```
+
+- **step instruction (si) vs next instruction (ni):** `si` will step into the function call whereas `ni` will not got into function and stay at the current level.
+        - If we stepped into the function call using `si`, then we can step out using the `finish` command.
+
 - **Breakpoint:** In x86 architecture, the program can signal a desire to be debugged by using the `int3` (opcode 0xCC) instruction. If a debugger is attached when `int3` is executed, it stops the program. This is called a program breakpoint. 
 ```assembly
 .intel_syntax noprefix
@@ -68,4 +101,31 @@ _start:
 - Restart a program:
 ```bash
 (gdb) run /r
+```
+
+- **Breakpoints:**
+
+Set the breakpoint on any function using:
+```bash
+(gdb) b *main
+(gdb) b *function
+```
+List all the breakpoints
+```bash
+(gdb) info break
+```
+Delete breakpoint using:
+```bash
+(gdb) del break 1
+```
+We can also set breakpoint on `rip` offset displayed in `disassembly` of function using:
+```bash
+#(gdb) b *function_name + offset
+(gdb) b *function_name + 51
+```
+
+- Dereferencing a value at register:
+In this case, dereference the address at `rip` as long:
+```bash
+(gdb) print *(long *) $rsp
 ```
