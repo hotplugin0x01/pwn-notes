@@ -32,7 +32,13 @@ For example, you can use `start <ARGV1> <ARGV2> <ARGVN> < <STDIN_PATH>`.
 ```bash
 (gdb) set $rax = 42
 ```
-- Examining memory: GDB's x (examine) command lets you look at the contents of memory:
+- **Examining memory:** GDB's x (examine) command lets you look at the contents of memory:
+- You can examine the contents of memory using the `x/<n><u><f> <address>` parameterized command. 
+        - In this format `<u>` is the unit size to display, `<f>` is the format to display it in, and `<n>` is the number of elements to display. 
+        - Valid unit sizes are `b` (1 byte), `h` (2 bytes), `w` (4 bytes), and `g` (8 bytes). 
+        - Valid formats are `d` (decimal), `x` (hexadecimal), `s` (string) and `i` (instruction). 
+        - The address can be specified using a register name, symbol name, or absolute address. 
+        - Additionally, you can supply mathematical expressions when specifying the address.
 ```bash
 (gdb) x $rsp
 ```
