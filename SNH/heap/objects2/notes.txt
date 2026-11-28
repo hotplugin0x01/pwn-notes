@@ -1,0 +1,20 @@
+- Create objects: o + key + type (b base , 1 derived1, 2 derived2) + num (1 digit)
+oAb16
+
+- Create key: c + key + size 
+cA16
+
+- assign key: a + key + Values size specified above
+aABBBBBBBB
+
+- deletekey: d + key
+dA
+
+- search key: s + key
+sA
+
+- Use object: u + key
+uA
+
+- Delete object: D + key
+DA
